@@ -1,0 +1,27 @@
+{
+  "name": "world-boss-announcer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "source": "src/cron-notifier.ts",
+  "engines": {
+    "node": ">12"
+  },
+  "scripts": {
+    "run": "parcel build && node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "parcel": "^2.9.3"
+  },
+  "dependencies": {
+    "ask-sdk-core": "^2.14.0",
+    "ask-sdk-model": "^1.85.0",
+    "axios": "^1.4.0",
+    "discord.js": "^14.12.1",
+    "dotenv": "^16.3.1",
+    "luxon": "^3.4.0"
+  }
+}
