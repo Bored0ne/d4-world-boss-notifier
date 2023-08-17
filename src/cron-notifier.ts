@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import {DateTime, Interval} from "luxon";
 import axios from "axios";
 import * as fs from "fs";
@@ -15,7 +16,7 @@ const authenticationConfiguration = {
 }
 
 class DataFile {
-  eventTimeInMillis;
+  eventTimeInSeconds;
   needsNotifying;
   boss;
 }
@@ -60,21 +61,23 @@ interface Data {
 const fileName = "cronCache.json"
 const timeUpdateUrl = "https://d4armory.io/api/events/recent";
 let df: DataFile = {
-  eventTimeInMillis: undefined,
-  needsNotifying: undefined,
-  boss: undefined
+  eventTimeInSeconds: null,
+  needsNotifying: null,
+  boss: null
 };
 
 function timeUntilEventIsLessThan15Min() {
+  console.log('checking time until event')
   const now = DateTime.now();
-  const eventTime = DateTime.fromISO(df?.eventTimeInMillis);
+  const eventTime = DateTime.fromSeconds(df?.eventTimeInSeconds);
   const minsRemaining = eventTime.diff(now, 'minutes').minutes
-  return minsRemaining <= 15 && minsRemaining > 0;
+  return minsRemaining <= 20 && minsRemaining > 0;
 }
 
 function eventAlreadyHappened() {
+  console.log('checking if event passed');
   const now = DateTime.now();
-  const eventTime = DateTime.fromISO(df?.eventTimeInMillis);
+  const eventTime = DateTime.fromSeconds(df?.eventTimeInSeconds);
   const minsRemaining = eventTime.diff(now, 'minutes').minutes
   return minsRemaining < 0;
 }
@@ -94,7 +97,7 @@ function fetchDF() {
 
 async function sendNotificationToAlexa() {
   const now = DateTime.now();
-  const eventTime = DateTime.fromSeconds(df.eventTimeInMillis);
+  const eventTime = DateTime.fromSeconds(df.eventTimeInSeconds);
   const expiryTime = eventTime.plus({minutes: 5})
 
   const apiConfiguration: ApiConfiguration = {
@@ -123,10 +126,14 @@ async function sendNotificationToAlexa() {
 
   const createEvent: CreateProactiveEventRequest = {
     timestamp: now.toString(),
-    referenceId: eventTime.toString(),
+    referenceId: df.eventTimeInSeconds.toString(),
     expiryTime: expiryTime.toString(),
     event: msg,
-    localizedAttributes: [{locale: 'en-US', providerName: 'Diablo 4', 'contentName': "World boss " + df.boss}],
+    localizedAttributes: [{
+      locale: 'en-US',
+      providerName: 'Diablo 4',
+      contentName: `The ${eventTime.toLocaleString(DateTime.TIME_SIMPLE)} world boss ${df.boss}`
+    }],
     relevantAudience: {
       type: "Multicast",
       payload: {}
@@ -136,13 +143,20 @@ async function sendNotificationToAlexa() {
   const stage = "DEVELOPMENT";
 
   await client.createProactiveEvent(createEvent, stage);
+  df.needsNotifying = false;
+  try {
+    const string = JSON.stringify(df, null, 2);
+    fs.writeFileSync(fileName, string, 'utf-8');
+  } catch (err) {
+    console.error('There was a problem updating the df', err);
+  }
 }
 
 async function updateDataFile() {
   await axios.get<Data>(timeUpdateUrl)
     .then(({data}) => {
       df.boss = data?.boss?.expectedName;
-      df.eventTimeInMillis = data?.boss?.expected;
+      df.eventTimeInSeconds = data?.boss?.expected;
       df.needsNotifying = true;
       const string = JSON.stringify(df, null, 2);
       fs.writeFileSync(fileName, string, 'utf-8');
@@ -154,14 +168,18 @@ async function updateDataFile() {
 
 (async function run() {
   if (fs.existsSync(fileName)) {
+    console.log('file exists');
     fetchDF()
   } else {
+    console.log('file does not exist');
     await updateDataFile();
   }
   if (needsNotifying() && timeUntilEventIsLessThan15Min()) {
+    console.log('letting alexa know')
     await sendNotificationToAlexa();
   }
   if (eventAlreadyHappened() && !needsNotifying()) {
+    console.log('updating file')
     await updateDataFile()
   }
 })();

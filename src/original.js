@@ -1,4 +1,4 @@
-import 'dotenv/config';
+
 import {DateTime, Duration, Interval} from 'luxon';
 import * as Alexa from 'ask-sdk-core';
 import * as AlexaModels from 'ask-sdk-model';
