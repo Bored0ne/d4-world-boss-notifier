@@ -71,6 +71,7 @@ function timeUntilEventIsLessThan15Min() {
   const now = DateTime.now();
   const eventTime = DateTime.fromSeconds(df?.eventTimeInSeconds);
   const minsRemaining = eventTime.diff(now, 'minutes').minutes
+  console.log(minsRemaining);
   return minsRemaining <= 20 && minsRemaining > 0;
 }
 
@@ -95,7 +96,7 @@ function fetchDF() {
   }
 }
 
-async function sendNotificationToAlexa() {
+async function sendNotifications() {
   const now = DateTime.now();
   const eventTime = DateTime.fromSeconds(df.eventTimeInSeconds);
   const expiryTime = eventTime.plus({minutes: 5})
@@ -142,7 +143,19 @@ async function sendNotificationToAlexa() {
 
   const stage = "DEVELOPMENT";
 
-  await client.createProactiveEvent(createEvent, stage);
+  await client.callCreateProactiveEvent(createEvent, stage);
+
+  fetch('https://ntfy.seatoncode.com/D4Alerts', {
+    method: 'POST', // PUT works too
+    body: `At ${eventTime.toLocaleString(DateTime.TIME_SIMPLE)}: World Boss ${df.boss}`,
+    headers: {
+      'Authorization': 'Bearer ' + process.env.NTFY_KEY,
+      'Actions': 'view, Open D4Armory, https://d4armory.io/events/'
+    }
+  })
+    .then(data => {console.log(data)})
+    .catch(err => {console.error(err)})
+
   df.needsNotifying = false;
   try {
     const string = JSON.stringify(df, null, 2);
@@ -176,9 +189,9 @@ async function updateDataFile() {
   }
   if (needsNotifying() && timeUntilEventIsLessThan15Min()) {
     console.log('letting alexa know')
-    await sendNotificationToAlexa();
+    await sendNotifications();
   }
-  if (eventAlreadyHappened() && !needsNotifying()) {
+  if (eventAlreadyHappened()) {
     console.log('updating file')
     await updateDataFile()
   }
